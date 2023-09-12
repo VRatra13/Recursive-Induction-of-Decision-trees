@@ -1,0 +1,96 @@
+import numpy as np
+
+class DecisionTree:
+    def __init__(self, max_depth=None):
+        self.max_depth = max_depth
+
+    def fit(self, X, y, depth=0):
+        if len(set(y)) == 1:  # If all labels are the same, stop and return that label
+            return y[0]
+
+        if self.max_depth is not None and depth >= self.max_depth:
+            # If the maximum depth is reached, stop and return the most frequent class
+            return np.bincount(y).argmax()
+
+        best_split_feature, best_split_value = self._find_best_split(X, y)
+
+        if best_split_feature is None:
+            # If no good split is found, return the most frequent class
+            return np.bincount(y).argmax()
+
+        left_mask = X[:, best_split_feature] <= best_split_value
+        right_mask = X[:, best_split_feature] > best_split_value
+
+        left_subtree = self.fit(X[left_mask], y[left_mask], depth + 1)
+        right_subtree = self.fit(X[right_mask], y[right_mask], depth + 1)
+
+        return (best_split_feature, best_split_value, left_subtree, right_subtree)
+
+    def _find_best_split(self, X, y):
+        m, n = X.shape
+        if m <= 1:
+            return None, None  # Not enough data to split
+
+        num_classes = len(set(y))
+        if num_classes == 1:
+            return None, None  # All samples in the node belong to the same class
+
+        best_gini = 1.0
+        best_split_feature = None
+        best_split_value = None
+
+        for feature in range(n):
+            feature_values = X[:, feature]
+            unique_values = np.unique(feature_values)
+            for value in unique_values:
+                left_mask = feature_values <= value
+                right_mask = feature_values > value
+
+                left_y = y[left_mask]
+                right_y = y[right_mask]
+
+                if len(left_y) == 0 or len(right_y) == 0:
+                    continue
+
+                gini_left = 1.0 - np.sum((np.bincount(left_y) / len(left_y)) ** 2)
+                gini_right = 1.0 - np.sum((np.bincount(right_y) / len(right_y)) ** 2)
+
+                gini = (len(left_y) / m) * gini_left + (len(right_y) / m) * gini_right
+
+                if gini < best_gini:
+                    best_gini = gini
+                    best_split_feature = feature
+                    best_split_value = value
+
+        return best_split_feature, best_split_value
+
+    def predict(self, X):
+        return np.array([self._predict_tree(x, self.tree) for x in X])
+
+    def _predict_tree(self, x, tree):
+        if isinstance(tree, int):
+            return tree  # This is a leaf node, return the class label
+        feature, value, left_subtree, right_subtree = tree
+        if x[feature] <= value:
+            return self._predict_tree(x, left_subtree)
+        else:
+            return self._predict_tree(x, right_subtree)
+
+# Example usage
+if __name__ == "__main__":
+    # Sample data
+    X = np.array([[2, 3],
+                  [5, 1],
+                  [7, 2],
+                  [8, 4],
+                  [3, 6]])
+    y = np.array([0, 1, 1, 0, 0])
+
+    # Create and fit the decision tree
+    tree = DecisionTree(max_depth=2)
+    tree.fit(X, y)
+
+    # Make predictions
+    X_test = np.array([[4, 3], [6, 5]])
+    predictions = tree.predict(X_test)
+    print(predictions)
