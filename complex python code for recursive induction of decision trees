@@ -1,0 +1,105 @@
+import numpy as np
+
+class DecisionNode:
+    def __init__(self, data, labels):
+        self.data = data
+        self.labels = labels
+        self.feature_index = None
+        self.threshold = None
+        self.left = None
+        self.right = None
+        self.is_leaf = False
+        self.prediction = None
+
+def calculate_gini(labels):
+    total_samples = len(labels)
+    unique_labels, label_counts = np.unique(labels, return_counts=True)
+    gini = 1.0
+    for label_count in label_counts:
+        probability = label_count / total_samples
+        gini -= probability**2
+    return gini
+
+def split_data(data, labels, feature_index, threshold):
+    left_data, left_labels, right_data, right_labels = [], [], [], []
+    for i in range(len(data)):
+        if data[i][feature_index] <= threshold:
+            left_data.append(data[i])
+            left_labels.append(labels[i])
+        else:
+            right_data.append(data[i])
+            right_labels.append(labels[i])
+    return np.array(left_data), np.array(left_labels), np.array(right_data), np.array(right_labels)
+
+def find_best_split(data, labels):
+    m, n = data.shape
+    if m <= 1:
+        return None, None
+    
+    num_parent = calculate_gini(labels)
+    best_gini = 1.0
+    best_feature = None
+    best_threshold = None
+    
+    for feature_index in range(n):
+        unique_values = np.unique(data[:, feature_index])
+        for threshold in unique_values:
+            left_data, left_labels, right_data, right_labels = split_data(data, labels, feature_index, threshold)
+            if len(left_data) == 0 or len(right_data) == 0:
+                continue
+            gini = (len(left_data) / m) * calculate_gini(left_labels) + (len(right_data) / m) * calculate_gini(right_labels)
+            if gini < best_gini:
+                best_gini = gini
+                best_feature = feature_index
+                best_threshold = threshold
+    
+    return best_feature, best_threshold
+
+def build_tree(data, labels):
+    if len(np.unique(labels)) == 1:
+        leaf = DecisionNode(data, labels)
+        leaf.is_leaf = True
+        leaf.prediction = labels[0]
+        return leaf
+    
+    best_feature, best_threshold = find_best_split(data, labels)
+    if best_feature is None:
+        leaf = DecisionNode(data, labels)
+        leaf.is_leaf = True
+        leaf.prediction = np.argmax(np.bincount(labels))
+        return leaf
+    
+    left_data, left_labels, right_data, right_labels = split_data(data, labels, best_feature, best_threshold)
+    
+    node = DecisionNode(data, labels)
+    node.feature_index = best_feature
+    node.threshold = best_threshold
+    node.left = build_tree(left_data, left_labels)
+    node.right = build_tree(right_data, right_labels)
+    
+    return node
+
+def predict_tree(node, x):
+    if node.is_leaf:
+        return node.prediction
+    
+    if x[node.feature_index] <= node.threshold:
+        return predict_tree(node.left, x)
+    else:
+        return predict_tree(node.right, x)
+
+# Example usage
+if __name__ == "__main__":
+    from sklearn.datasets import load_iris
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import accuracy_score
+
+    iris = load_iris()
+    X, y = iris.data, iris.target
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    decision_tree = build_tree(X_train, y_train)
+    y_pred = [predict_tree(decision_tree, x) for x in X_test]
+
+    accuracy = accuracy_score(y_test, y_pred)
+    print(f"Accuracy: {accuracy}")
